@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Universo de Partículas - Control por Gestos</title>
+
+<style>
+    * { box-sizing: border-box; }
+
+    body {
+        margin: 0;
+        overflow: hidden;
+        background: #02030a;
+        font-family: Arial, Helvetica, sans-serif;
+        color: white;
+    }
+
+    #container {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+    }
+
+    canvas {
+        display: block;
+    }
+
+    #webcam {
+        position: absolute;
+        right: 18px;
+        bottom: 18px;
+        width: 230px;
+        max-width: 28vw;
+        border-radius: 14px;
+        transform: scaleX(-1);
+        border: 2px solid rgba(255,255,255,.35);
+        box-shadow: 0 0 25px rgba(0,200,255,.25);
+        z-index: 5;
+    }
+
+    #panel {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        width: min(390px, calc(100vw - 32px));
+        padding: 16px;
+        border: 1px solid rgba(255,255,255,.16);
+        border-radius: 18px;
+        background: rgba(5,8,20,.72);
+        backdrop-filter: blur(12px);
+        z-index: 6;
+        box-shadow: 0 12px 40px rgba(0,0,0,.35);
+    }
+
+    #panel h1 {
+        margin: 0 0 8px;
+        font-size: 21px;
+    }
+
+    #shape {
+        color: #62e9ff;
+        font-weight: bold;
+        font-size: 18px;
+    }
+
+    #gesture {
+        margin-top: 5px;
+        color: #ffe37b;
+        font-weight: bold;
+    }
+
+    #status {
+        margin-top: 8px;
+        color: #a9b2c7;
+        font-size: 13px;
+    }
+
+    #instructions {
+        margin-top: 12px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(255,255,255,.12);
+        font-size: 12px;
+        line-height: 1.55;
+        color: #d8deea;
+    }
+
+    .key {
+        color: white;
+        font-weight: bold;
+    }
+
+    #error {
+        color: #ff7f7f;
+        margin-top: 8px;
+        display: none;
+        font-size: 13px;
+    }
+
+    #start {
+        margin-top: 10px;
+        border: 0;
+        border-radius: 10px;
+        padding: 9px 13px;
+        cursor: pointer;
+        background: #1dd6ff;
+        color: #001018;
+        font-weight: bold;
+    }
+
+    #start:hover { filter: brightness(1.12); }
+
+    @media (max-width: 700px) {
+        #panel { width: calc(100vw - 32px); }
+        #webcam { width: 150px; }
+    }
+</style>
+</head>
+
+<body>
+<div id="container">
+
+    <div id="panel">
+        <h1>🌌 Universo de Partículas</h1>
+        <div>Forma: <span id="shape">Esfera</span></div>
+        <div>Gesto: <span id="gesture">Esperando mano...</span></div>
+        <div id="status">Inicializando cámara y detección de mano...</div>
+
+        <div id="instructions">
+            <div><span class="key">🖐 Mano abierta</span> → Galaxia espiral</div>
+            <div><span class="key">✊ Puño</span> → Agujero negro</div>
+            <div><span class="key">☝ 1 dedo</span> → Rayo / relámpago</div>
+            <div><span class="key">✌ 2 dedos</span> → Doble hélice de ADN</div>
+            <div><span class="key">🤟 3 dedos</span> → Trifolio / trébol energético</div>
+            <div><span class="key">🖖 4 dedos</span> → Cubo holográfico</div>
+            <div><span class="key">👌 Pinch</span> → Átomo con electrones</div>
+            <div><span class="key">👍 Pulgar arriba</span> → Estrella</div>
+            <div><span class="key">☝ + movimiento lateral</span> → Cometa</div>
+            <div><span class="key">↔ Distancia entre pulgar e índice</span> → Tamaño y energía</div>
+            <div><span class="key">↕ Posición de la mano</span> → Inclinación y movimiento</div>
+        </div>
+
+        <button id="start">Activar cámara</button>
+        <div id="error"></div>
+    </div>
+
+    <video id="webcam" autoplay playsinline muted></video>
+</div>
+
+<!--
+    PROGRAMA DE CONTROL POR GESTOS
+
+    INSTRUCTIVO:
+    1. Mano abierta 🖐
+       Forma: GALAXIA ESPIRAL.
+       La posición de la mano controla la rotación.
+       Abrir/cerrar ligeramente los dedos modifica la energía.
+
+    2. Puño ✊
+       Forma: AGUJERO NEGRO.
+       Las partículas son atraídas hacia el centro.
+       El movimiento de la mano desplaza el agujero negro.
+
+    3. Un dedo ☝
+       Forma: RAYO.
+       El movimiento lateral rápido puede convertirse en COMETA.
+
+    4. Dos dedos ✌
+       Forma: DOBLE HÉLICE DE ADN.
+       La distancia de la mano al centro modifica su tamaño.
+
+    5. Tres dedos 🤟
+       Forma: TRÉBOL/TRIFOLIO ENERGÉTICO.
+       La inclinación de la mano gira la figura.
+
+    6. Cuatro dedos 🖖
+       Forma: CUBO HOLOGRÁFICO.
+       Mover la mano rota y desplaza el cubo.
+
+    7. Pinch 👌
+       Forma: ÁTOMO.
+       Acercar/separar pulgar e índice cambia el radio de las órbitas.
+       También produce una onda de energía.
+
+    8. Pulgar arriba 👍
+       Forma: ESTRELLA.
+       El tamaño de la estrella responde a la distancia de la mano.
+
+    9. Movimiento rápido con un dedo
+       Forma: COMETA.
+       La dirección del movimiento determina la dirección de la cola.
+
+    10. Distancia entre pulgar e índice
+        Controla escala, intensidad y expansión de las partículas.
+
+    11. Posición X/Y de la mano
+        Controla rotación, inclinación y desplazamiento del sistema.
+
+    IMPORTANTE:
+    - Se necesitan permisos para utilizar la cámara.
+    - Se recomienda Chrome o Edge.
+    - El archivo puede abrirse con Live Server o mediante un servidor local.
+-->
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+    }
+}
+</script>
+
+<script type="module">
+import * as THREE from "three";
+
+/* =========================================================
+   CONFIGURACIÓN
+   ========================================================= */
+const PARTICLES = 10000;
+const TAU = Math.PI * 2;
+
+const video = document.getElementById("webcam");
+const shapeText = document.getElementById("shape");
+const gestureText = document.getElementById("gesture");
+const statusText = document.getElementById("status");
+const errorText = document.getElementById("error");
+const startButton = document.getElementById("start");
+
+let currentShape = "Esfera";
+let currentGesture = "Esperando mano...";
+let handDetected = false;
+
+let handX = 0;
+let handY = 0;
+let targetScale = 1;
+let currentScale = 1;
+let targetRotationX = 0;
+let targetRotationY = 0;
+
+let pinchDistance = 0.08;
+let previousHandX = 0.5;
+let previousTime = performance.now();
+let handVelocityX = 0;
+let lastSwipeTime = 0;
+
+let energy = 1;
+let targetEnergy = 1;
+
+let lastGesture = "";
+let gestureStableSince = 0;
+
+/* =========================================================
+   THREE.JS
+   ========================================================= */
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(
+    60,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    100
+);
+camera.position.z = 7;
+
+const renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    alpha: false
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.getElementById("container").appendChild(renderer.domElement);
+
+const geometry = new THREE.BufferGeometry();
+const positions = new Float32Array(PARTICLES * 3);
+const targets = new Float32Array(PARTICLES * 3);
+const colors = new Float32Array(PARTICLES * 3);
+const seeds = new Float32Array(PARTICLES);
+
+for (let i = 0; i < PARTICLES; i++) {
+    const i3 = i * 3;
+    positions[i3] = (Math.random() - 0.5) * 8;
+    positions[i3 + 1] = (Math.random() - 0.5) * 8;
+    positions[i3 + 2] = (Math.random() - 0.5) * 8;
+
+    colors[i3] = 0.2;
+    colors[i3 + 1] = 0.8;
+    colors[i3 + 2] = 1;
+
+    seeds[i] = Math.random();
+}
+
+geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+
+const material = new THREE.PointsMaterial({
+    size: 0.035,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.9,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+});
+
+const particles = new THREE.Points(geometry, material);
+scene.add(particles);
+
+/* =========================================================
+   CREACIÓN DE FORMAS
+   ========================================================= */
+function setShape(name) {
+    currentShape = name;
+    shapeText.textContent = name;
+
+    for (let i = 0; i < PARTICLES; i++) {
+        const i3 = i * 3;
+        let x = 0, y = 0, z = 0;
+
+        if (name === "Esfera") {
+            const phi = Math.acos(1 - 2 * (i + 0.5) / PARTICLES);
+            const theta = Math.PI * (3 - Math.sqrt(5)) * i;
+            const r = 1.9 + (seeds[i] - 0.5) * 0.25;
+
+            x = r * Math.sin(phi) * Math.cos(theta);
+            y = r * Math.cos(phi);
+            z = r * Math.sin(phi) * Math.sin(theta);
+        }
+
+        else if (name === "Galaxia") {
+            const arm = i % 5;
+            const radius = Math.sqrt(seeds[i]) * 3.0;
+            const angle = radius * 2.6 + arm * TAU / 5 + seeds[i] * 0.8;
+
+            x = Math.cos(angle) * radius;
+            z = Math.sin(angle) * radius;
+            y = (seeds[i] - 0.5) * 0.45 * (1 - radius / 3.5);
+        }
+
+        else if (name === "Agujero negro") {
+            const r = Math.pow(seeds[i], 1.8) * 3.3 + 0.15;
+            const angle = seeds[i] * 40 + i * 0.015;
+
+            x = Math.cos(angle) * r;
+            z = Math.sin(angle) * r;
+            y = (seeds[i] - 0.5) * 0.45;
+
+            if (r < 0.7) {
+                x *= 0.25;
+                y *= 0.25;
+                z *= 0.25;
+            }
+        }
+
+        else if (name === "Rayo") {
+            const t = i / PARTICLES;
+            const segment = Math.floor(t * 12);
+            const local = (t * 12) % 1;
+            const startX = Math.sin(segment * 2.7) * 1.4;
+            const startY = -2.6 + segment * 0.43;
+            const endX = Math.sin((segment + 1) * 2.7) * 1.4;
+
+            x = THREE.MathUtils.lerp(startX, endX, local);
+            x += (seeds[i] - 0.5) * 0.22;
+            y = startY + local * 0.43;
+            z = (seeds[i] - 0.5) * 0.7;
+        }
+
+        else if (name === "ADN") {
+            const t = i / PARTICLES;
+            const angle = t * TAU * 7;
+            const y0 = (t - 0.5) * 5.5;
+            const radius = 1.0;
+
+            if (i % 2 === 0) {
+                x = Math.cos(angle) * radius;
+                z = Math.sin(angle) * radius;
+            } else {
+                x = Math.cos(angle + Math.PI) * radius;
+                z = Math.sin(angle + Math.PI) * radius;
+            }
+
+            y = y0;
+
+            if (i % 7 === 0) {
+                const bridge = seeds[i];
+                x = THREE.MathUtils.lerp(
+                    Math.cos(angle) * radius,
+                    Math.cos(angle + Math.PI) * radius,
+                    bridge
+                );
+                z = THREE.MathUtils.lerp(
+                    Math.sin(angle) * radius,
+                    Math.sin(angle + Math.PI) * radius,
+                    bridge
+                );
+            }
+        }
+
+        else if (name === "Trifolio") {
+            const t = i / PARTICLES * TAU * 8;
+            const r = 2.3 * Math.sin(3 * t);
+
+            x = r * Math.cos(t);
+            y = r * Math.sin(t);
+            z = (seeds[i] - 0.5) * 0.65;
+        }
+
+        else if (name === "Cubo") {
+            const face = i % 6;
+            const u = seeds[i] * 4 - 2;
+            const v = ((seeds[i] * 17) % 1) * 4 - 2;
+
+            if (face === 0) { x = 2; y = u; z = v; }
+            if (face === 1) { x = -2; y = u; z = v; }
+            if (face === 2) { x = u; y = 2; z = v; }
+            if (face === 3) { x = u; y = -2; z = v; }
+            if (face === 4) { x = u; y = v; z = 2; }
+            if (face === 5) { x = u; y = v; z = -2; }
+        }
+
+        else if (name === "Atomo") {
+            if (i < PARTICLES * 0.22) {
+                const phi = Math.acos(1 - 2 * (i + 0.5) / (PARTICLES * 0.22));
+                const theta = Math.PI * (3 - Math.sqrt(5)) * i;
+
+                x = Math.sin(phi) * Math.cos(theta) * 0.55;
+                y = Math.cos(phi) * 0.55;
+                z = Math.sin(phi) * Math.sin(theta) * 0.55;
+            } else {
+                const electronIndex = i % 4;
+                const angle = seeds[i] * TAU * 5;
+                const radius = 1.3 + electronIndex * 0.48;
+
+                x = Math.cos(angle) * radius;
+                y = Math.sin(angle * 1.7) * 0.25;
+                z = Math.sin(angle) * radius;
+
+                if (electronIndex % 2) {
+                    const temp = x;
+                    x = temp * 0.65 + y * 0.75;
+                    y = temp * 0.75 - y * 0.65;
+                }
+            }
+        }
+
+        else if (name === "Estrella") {
+            const angle = seeds[i] * TAU;
+            const spikes = 5;
+            const phase = angle * spikes;
+            const outer = 2.6;
+            const inner = 1.05;
+            const radius = (Math.cos(phase) > 0 ? outer : inner) * (0.75 + seeds[i] * 0.25);
+
+            x = Math.cos(angle) * radius;
+            y = Math.sin(angle) * radius;
+            z = (seeds[i] - 0.5) * 0.8;
+        }
+
+        else if (name === "Cometa") {
+            const t = seeds[i];
+            const head = t < 0.18;
+
+            if (head) {
+                const r = Math.cbrt(seeds[i] / 0.18) * 0.75;
+                const a = seeds[i] * TAU * 20;
+                x = 1.2 + Math.cos(a) * r;
+                y = Math.sin(a) * r;
+                z = Math.cos(a * 1.7) * r;
+            } else {
+                const q = (t - 0.18) / 0.82;
+                x = 1.0 - q * 4.7;
+                y = (seeds[i] - 0.5) * (0.25 + q * 1.1);
+                z = (seeds[i] - 0.5) * (0.25 + q * 1.1);
+            }
+        }
+
+        targets[i3] = x;
+        targets[i3 + 1] = y;
+        targets[i3 + 2] = z;
+    }
+}
+
+setShape("Esfera");
+
+/* =========================================================
+   COLORES
+   ========================================================= */
+function updateColors(time) {
+    const hueBase = (time * 0.00003 + handX * 0.25 + energy * 0.04) % 1;
+
+    for (let i = 0; i < PARTICLES; i++) {
+        const i3 = i * 3;
+        const hue = (hueBase + seeds[i] * 0.18) % 1;
+        const rgb = hslToRgb(hue, 0.85, 0.58);
+
+        colors[i3] += (rgb.r - colors[i3]) * 0.08;
+        colors[i3 + 1] += (rgb.g - colors[i3 + 1]) * 0.08;
+        colors[i3 + 2] += (rgb.b - colors[i3 + 2]) * 0.08;
+    }
+
+    geometry.attributes.color.needsUpdate = true;
+}
+
+function hslToRgb(h, s, l) {
+    let r, g, b;
+
+    if (s === 0) return { r: l, g: l, b: l };
+
+    const hue2rgb = (p, q, t) => {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1 / 6) return p + (q - p) * 6 * t;
+        if (t < 1 / 2) return q;
+        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+        return p;
+    };
+
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+
+    r = hue2rgb(p, q, h + 1 / 3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1 / 3);
+
+    return { r, g, b };
+}
+
+/* =========================================================
+   GESTOS
+   ========================================================= */
+function distance(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function countExtendedFingers(lm) {
+    /*
+      MediaPipe entrega:
+      4 = pulgar
+      8 = índice
+      12 = medio
+      16 = anular
+      20 = meñique
+    */
+
+    const fingers = [];
+
+    // Pulgar: comparación aproximada con su articulación.
+    fingers.push(
+        distance(lm[4], lm[5]) > distance(lm[3], lm[5]) * 1.12
+    );
+
+    const pairs = [
+        [8, 6],
+        [12, 10],
+        [16, 14],
+        [20, 18]
+    ];
+
+    for (const [tip, joint] of pairs) {
+        fingers.push(lm[tip].y < lm[joint].y - 0.015);
+    }
+
+    return fingers;
+}
+
+function classifyGesture(lm) {
+    const fingers = countExtendedFingers(lm);
+    const count = fingers.filter(Boolean).length;
+
+    const pinch = distance(lm[4], lm[8]);
+
+    const wrist = lm[0];
+    const middle = lm[9];
+
+    const palmSize = distance(wrist, middle);
+    const pinchRatio = pinch / Math.max(palmSize, 0.001);
+
+    const thumbUp =
+        fingers[0] &&
+        !fingers[1] &&
+        !fingers[2] &&
+        !fingers[3] &&
+        !fingers[4] &&
+        lm[4].y < lm[3].y;
+
+    if (pinchRatio < 0.42) return "Pinch";
+    if (thumbUp) return "Pulgar arriba";
+    if (count === 0) return "Puño";
+    if (count === 1) return "1 dedo";
+    if (count === 2) return "2 dedos";
+    if (count === 3) return "3 dedos";
+    if (count === 4) return "4 dedos";
+    if (count === 5) return "Mano abierta";
+
+    return "Mano";
+}
+
+function changeShapeByGesture(gesture) {
+    const now = performance.now();
+
+    if (gesture !== lastGesture) {
+        lastGesture = gesture;
+        gestureStableSince = now;
+        return;
+    }
+
+    if (now - gestureStableSince < 220) return;
+
+    const map = {
+        "Puño": "Agujero negro",
+        "1 dedo": "Rayo",
+        "2 dedos": "ADN",
+        "3 dedos": "Trifolio",
+        "4 dedos": "Cubo",
+        "Mano abierta": "Galaxia",
+        "Pinch": "Atomo",
+        "Pulgar arriba": "Estrella"
+    };
+
+    if (map[gesture] && currentShape !== map[gesture]) {
+        setShape(map[gesture]);
+    }
+}
+
+/* =========================================================
+   MEDIAPIPE
+   ========================================================= */
+const hands = new Hands({
+    locateFile: file =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+});
+
+hands.setOptions({
+    maxNumHands: 1,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.62,
+    minTrackingConfidence: 0.62
+});
+
+hands.onResults(results => {
+    if (!results.multiHandLandmarks || !results.multiHandLandmarks.length) {
+        handDetected = false;
+        gestureText.textContent = "No se detecta la mano";
+        statusText.textContent = "Coloca una mano frente a la cámara.";
+        return;
+    }
+
+    handDetected = true;
+
+    const lm = results.multiHandLandmarks[0];
+    const gesture = classifyGesture(lm);
+
+    handX = 1 - lm[9].x;
+    handY = lm[9].y;
+
+    const rawPinch = distance(lm[4], lm[8]);
+    pinchDistance += (rawPinch - pinchDistance) * 0.25;
+
+    targetScale = THREE.MathUtils.clamp(
+        0.75 + pinchDistance * 4.2,
+        0.72,
+        1.8
+    );
+
+    targetEnergy = THREE.MathUtils.clamp(
+        0.6 + pinchDistance * 4.5,
+        0.7,
+        2.2
+    );
+
+    targetRotationY = (handX - 0.5) * 2.8;
+    targetRotationX = (handY - 0.5) * 2.2;
+
+    const now = performance.now();
+    const dt = Math.max((now - previousTime) / 1000, 0.016);
+    handVelocityX = (handX - previousHandX) / dt;
+
+    previousHandX = handX;
+    previousTime = now;
+
+    // Un dedo moviéndose rápidamente hacia un lado genera un cometa.
+    if (
+        gesture === "1 dedo" &&
+        Math.abs(handVelocityX) > 1.15 &&
+        now - lastSwipeTime > 900
+    ) {
+        setShape("Cometa");
+        lastSwipeTime = now;
+    }
+
+    changeShapeByGesture(gesture);
+
+    gestureText.textContent = gesture;
+    statusText.textContent =
+        `Mano detectada · Energía ${targetEnergy.toFixed(1)} · Escala ${targetScale.toFixed(1)}`;
+});
+
+/* =========================================================
+   ANIMACIÓN
+   ========================================================= */
+const clock = new THREE.Clock();
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    const time = performance.now();
+    const elapsed = clock.getElapsedTime();
+
+    currentScale += (targetScale - currentScale) * 0.08;
+    energy += (targetEnergy - energy) * 0.08;
+
+    particles.scale.setScalar(currentScale);
+
+    particles.rotation.y += 0.0018 * energy;
+    particles.rotation.y += (targetRotationY - particles.rotation.y) * 0.012;
+    particles.rotation.x += (targetRotationX - particles.rotation.x) * 0.012;
+
+    const pos = geometry.attributes.position.array;
+
+    for (let i = 0; i < PARTICLES; i++) {
+        const i3 = i * 3;
+
+        let tx = targets[i3];
+        let ty = targets[i3 + 1];
+        let tz = targets[i3 + 2];
+
+        const s = seeds[i];
+
+        if (currentShape === "Agujero negro") {
+            const swirl = elapsed * (0.8 + s * 1.2);
+            const c = Math.cos(swirl);
+            const si = Math.sin(swirl);
+
+            const ox = tx;
+            const oz = tz;
+
+            tx = ox * c - oz * si;
+            tz = ox * si + oz * c;
+
+            const pull = 0.86 + 0.16 * Math.sin(elapsed * 2 + s * 8);
+            tx *= pull;
+            ty *= pull;
+            tz *= pull;
+        }
+
+        else if (currentShape === "Galaxia") {
+            const wave = Math.sin(elapsed * 2.0 + s * 12) * 0.08;
+            ty += wave * (1 - Math.min(Math.abs(tx) / 4, 1));
+        }
+
+        else if (currentShape === "ADN") {
+            tx += Math.sin(elapsed * 1.7 + ty * 2) * 0.08;
+        }
+
+        else if (currentShape === "Atomo") {
+            const orbit = elapsed * (0.8 + s * 1.4);
+            const c = Math.cos(orbit);
+            const si = Math.sin(orbit);
+
+            const ox = tx;
+            const oz = tz;
+
+            tx = ox * c - oz * si;
+            tz = ox * si + oz * c;
+        }
+
+        else if (currentShape === "Estrella") {
+            const pulse = 1 + Math.sin(elapsed * 3 + s * 10) * 0.08 * energy;
+            tx *= pulse;
+            ty *= pulse;
+            tz *= pulse;
+        }
+
+        else if (currentShape === "Cometa") {
+            tx += elapsed * 0.12;
+        }
+
+        const smooth = currentShape === "Agujero negro" ? 0.16 : 0.075;
+
+        pos[i3] += (tx - pos[i3]) * smooth;
+        pos[i3 + 1] += (ty - pos[i3 + 1]) * smooth;
+        pos[i3 + 2] += (tz - pos[i3 + 2]) * smooth;
+    }
+
+    geometry.attributes.position.needsUpdate = true;
+
+    material.size = 0.025 + energy * 0.018;
+
+    updateColors(time);
+
+    renderer.render(scene, camera);
+}
+
+animate();
+
+/* =========================================================
+   CÁMARA
+   ========================================================= */
+let cameraStarted = false;
+
+async function startCamera() {
+    if (cameraStarted) return;
+
+    try {
+        statusText.textContent = "Solicitando permiso de cámara...";
+        errorText.style.display = "none";
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                facingMode: "user"
+            },
+            audio: false
+        });
+
+        video.srcObject = stream;
+        await video.play();
+
+        cameraStarted = true;
+        startButton.style.display = "none";
+        statusText.textContent = "Cámara activa. Muestra tu mano.";
+
+        const mpCamera = new Camera(video, {
+            onFrame: async () => {
+                await hands.send({ image: video });
+            },
+            width: 1280,
+            height: 720
+        });
+
+        mpCamera.start();
+
+    } catch (error) {
+        console.error(error);
+        errorText.style.display = "block";
+        errorText.textContent =
+            "No se pudo activar la cámara. Revisa el permiso del navegador y ejecuta el archivo mediante un servidor local.";
+        statusText.textContent = "Cámara no disponible.";
+    }
+}
+
+startButton.addEventListener("click", startCamera);
+
+if (navigator.mediaDevices?.getUserMedia) {
+    statusText.textContent =
+        "Pulsa «Activar cámara» y permite el acceso a la cámara.";
+} else {
+    errorText.style.display = "block";
+    errorText.textContent =
+        "Este navegador no permite acceder a la cámara desde este contexto.";
+}
+
+/* =========================================================
+   VENTANA
+   ========================================================= */
+window.addEventListener("resize", () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
